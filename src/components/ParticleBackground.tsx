@@ -26,10 +26,10 @@ const ParticleBackground = () => {
         id: i,
         x: Math.random() * window.innerWidth,
         y: Math.random() * window.innerHeight,
-        size: Math.random() * 4 + 1,
-        speedX: (Math.random() - 0.5) * 0.5,
-        speedY: (Math.random() - 0.5) * 0.5,
-        opacity: Math.random() * 0.5 + 0.1,
+        size: Math.random() * 4 + 4,
+        speedX: (Math.random() - 0.3) * 0.7,
+        speedY: (Math.random() - 0.3) * 0.7,
+        opacity: Math.random() * 0.5 + 0.2,
         color: colors[Math.floor(Math.random() * colors.length)],
       });
     }
