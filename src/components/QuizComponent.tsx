@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -11,23 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Check, ArrowRight, BrainCircuit, Activity } from "lucide-react";
-
-interface QuestionOption {
-  min?: number;
-  max?: number;
-  step?: number;
-  options?: string[];
-  cancer_type_hints?: Record<string, number>;
-}
-
-interface Question {
-  id: number;
-  question_text: string;
-  question_type: string;
-  options: QuestionOption;
-  weight: number;
-  category?: string;
-}
+import { Question } from "@/types/quizTypes";
 
 interface QuizComponentProps {
   question: Question;
@@ -51,39 +34,34 @@ const QuizComponent = ({
   const [isValid, setIsValid] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Reset response when question changes
   useEffect(() => {
     setResponse(null);
     setIsValid(false);
     setIsSubmitting(false);
     
-    // Set default slider value
     if (question.question_type === 'range' && question.options) {
       setSliderValue([question.options.min || 1]);
     }
   }, [question]);
 
-  // Validate response
   useEffect(() => {
     if (question.question_type === 'boolean' || question.question_type === 'select') {
       setIsValid(response !== null);
     } else if (question.question_type === 'range') {
-      setIsValid(true); // Range always has a value
+      setIsValid(true);
     }
   }, [response, question.question_type]);
 
-  // Auto submit on valid selection for boolean and select types
   useEffect(() => {
     if (isValid && (question.question_type === 'boolean' || question.question_type === 'select') && response !== null) {
       const timer = setTimeout(() => {
         handleSubmit();
-      }, 600); // Delay to show selection animation
+      }, 600);
       
       return () => clearTimeout(timer);
     }
   }, [response, isValid, question.question_type]);
 
-  // Handle submit
   const handleSubmit = () => {
     if (isValid && !isSubmitting) {
       setIsSubmitting(true);
@@ -94,11 +72,10 @@ const QuizComponent = ({
         } else if (response !== null) {
           onResponse(question.id, response);
         }
-      }, 300); // Small delay for animation completion
+      }, 300);
     }
   };
 
-  // Bubble animation variants
   const bubbleVariants = {
     initial: { scale: 0.8, opacity: 0 },
     animate: { scale: 1, opacity: 1, transition: { duration: 0.5 } },
@@ -113,7 +90,6 @@ const QuizComponent = ({
     }
   };
 
-  // Progress indicator animation
   const progressVariants = {
     initial: { width: 0 },
     animate: { 
@@ -122,7 +98,6 @@ const QuizComponent = ({
     }
   };
 
-  // Phase icon
   const PhaseIcon = () => {
     if (quizPhase === "general") {
       return <Activity className="w-5 h-5 text-blue-500" />;
@@ -139,7 +114,6 @@ const QuizComponent = ({
       transition={{ duration: 0.5 }}
       className="bg-gradient-to-br from-white to-purple-50 rounded-xl border border-purple-200 shadow-lg p-8 relative overflow-hidden"
     >
-      {/* Decorative elements */}
       <div className="absolute -top-10 -right-10 w-40 h-40 bg-purple-200 rounded-full opacity-20"></div>
       <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-blue-200 rounded-full opacity-20"></div>
       

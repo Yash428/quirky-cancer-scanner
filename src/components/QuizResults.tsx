@@ -1,4 +1,3 @@
-
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,17 +12,8 @@ import {
   Utensils,
   Calendar
 } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useState } from "react";
-
-interface RiskAssessment {
-  risk_level: string;
-  advice: string;
-  foods_to_eat: string[];
-  foods_to_avoid: string[];
-  precautions: string[];
-  cancer_type: string;
-}
+import { RiskAssessment } from "@/types/quizTypes";
 
 interface QuizResultsProps {
   score: number;
@@ -54,7 +44,6 @@ const QuizResults = ({ score, riskAssessment, cancerType, resetQuiz }: QuizResul
     );
   }
 
-  // Determine risk level color and icon
   const getRiskLevelInfo = (riskLevel: string) => {
     switch (riskLevel.toLowerCase()) {
       case 'low':
@@ -92,14 +81,13 @@ const QuizResults = ({ score, riskAssessment, cancerType, resetQuiz }: QuizResul
     }
   };
 
-  const riskInfo = getRiskLevelInfo(riskAssessment.risk_level);
+  const riskInfo = riskAssessment ? getRiskLevelInfo(riskAssessment.risk_level) : 
+    { color: '', icon: null, textColor: '', borderColor: '', shadowColor: '' };
   
-  // Format the cancer type for display
   const formattedCancerType = cancerType 
     ? cancerType.charAt(0).toUpperCase() + cancerType.slice(1) 
     : "General";
   
-  // Limit the number of foods shown initially
   const foodLimit = 4;
   const precautionLimit = 3;
   
@@ -115,7 +103,6 @@ const QuizResults = ({ score, riskAssessment, cancerType, resetQuiz }: QuizResul
     ? riskAssessment.precautions || []
     : (riskAssessment.precautions || []).slice(0, precautionLimit);
 
-  // Motion variants
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: { 
@@ -156,7 +143,6 @@ const QuizResults = ({ score, riskAssessment, cancerType, resetQuiz }: QuizResul
       animate="visible"
       className="bg-gradient-to-br from-white to-purple-50 rounded-xl border border-purple-200 shadow-lg p-8 relative overflow-hidden"
     >
-      {/* Decorative elements */}
       <div className="absolute -top-20 -right-20 w-60 h-60 bg-purple-200 rounded-full opacity-20"></div>
       <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-blue-200 rounded-full opacity-20"></div>
       

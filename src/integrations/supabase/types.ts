@@ -56,29 +56,35 @@ export type Database = {
       risk_assessments: {
         Row: {
           advice: string
+          cancer_type: string | null
           foods_to_avoid: string[]
           foods_to_eat: string[]
           id: number
           max_score: number
           min_score: number
+          precautions: string[] | null
           risk_level: string
         }
         Insert: {
           advice: string
+          cancer_type?: string | null
           foods_to_avoid: string[]
           foods_to_eat: string[]
           id?: number
           max_score: number
           min_score: number
+          precautions?: string[] | null
           risk_level: string
         }
         Update: {
           advice?: string
+          cancer_type?: string | null
           foods_to_avoid?: string[]
           foods_to_eat?: string[]
           id?: number
           max_score?: number
           min_score?: number
+          precautions?: string[] | null
           risk_level?: string
         }
         Relationships: []
