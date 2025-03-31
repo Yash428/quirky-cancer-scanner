@@ -8,25 +8,56 @@ import DashboardSidebar from "@/components/DashboardSidebar";
 import QuizComponent from "@/components/QuizComponent";
 import QuizResults from "@/components/QuizResults";
 
+// Define proper types for our data structures
+interface QuestionOption {
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: string[];
+  cancer_type_hints?: Record<string, number>;
+}
+
+interface Question {
+  id: number;
+  question_text: string;
+  question_type: string;
+  options: QuestionOption;
+  weight: number;
+  category?: string;
+  next_question_logic?: Record<string, number> | { default: number };
+}
+
+interface RiskAssessment {
+  id: number;
+  risk_level: string;
+  advice: string;
+  min_score: number;
+  max_score: number;
+  foods_to_eat: string[];
+  foods_to_avoid: string[];
+  cancer_type?: string;
+}
+
 const Quiz = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [questions, setQuestions] = useState([]);
-  const [generalQuestions, setGeneralQuestions] = useState([]);
-  const [specializedQuestions, setSpecializedQuestions] = useState([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [generalQuestions, setGeneralQuestions] = useState<Question[]>([]);
+  const [specializedQuestions, setSpecializedQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [responses, setResponses] = useState({});
+  const [responses, setResponses] = useState<Record<number, string | number>>({});
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [score, setScore] = useState(0);
-  const [riskAssessment, setRiskAssessment] = useState(null);
+  const [riskAssessment, setRiskAssessment] = useState<RiskAssessment | null>(null);
   const [quizPhase, setQuizPhase] = useState("general"); // general or specialized
-  const [detectedCancerType, setDetectedCancerType] = useState(null);
+  const [detectedCancerType, setDetectedCancerType] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // Fetch questions from the database
   useEffect(() => {
     const fetchQuestions = async () => {
       try {
+        console.log("Fetching questions from Supabase...");
         // Fetch general screening questions
         const { data: generalData, error: generalError } = await supabase
           .from("questions")
@@ -34,7 +65,12 @@ const Quiz = () => {
           .eq("category", "general")
           .order("id");
 
-        if (generalError) throw generalError;
+        if (generalError) {
+          console.error("Error fetching general questions:", generalError);
+          throw generalError;
+        }
+        
+        console.log("General questions fetched:", generalData);
         setGeneralQuestions(generalData);
 
         // Fetch all other questions for the specialized phase
@@ -44,12 +80,27 @@ const Quiz = () => {
           .not("category", "eq", "general")
           .order("id");
 
-        if (specializedError) throw specializedError;
+        if (specializedError) {
+          console.error("Error fetching specialized questions:", specializedError);
+          throw specializedError;
+        }
+        
+        console.log("Specialized questions fetched:", specializedData);
         setSpecializedQuestions(specializedData);
 
         // Initially set the active questions to general screening
-        setQuestions(generalData);
-        setIsLoading(false);
+        if (generalData && generalData.length > 0) {
+          setQuestions(generalData);
+          setIsLoading(false);
+        } else {
+          console.error("No general questions found in the database");
+          toast({
+            variant: "destructive",
+            title: "No Questions Found",
+            description: "The quiz database appears to be empty. Please try again later.",
+          });
+          setIsLoading(false);
+        }
       } catch (error) {
         console.error("Error fetching questions:", error);
         toast({
@@ -65,7 +116,7 @@ const Quiz = () => {
   }, []);
 
   // Handle response saving
-  const handleResponse = async (questionId, response) => {
+  const handleResponse = async (questionId: number, response: string | number) => {
     try {
       // Store response in state
       const newResponses = { ...responses, [questionId]: response };
@@ -76,13 +127,16 @@ const Quiz = () => {
       
       // Determine the next question based on the response
       let nextQuestionIndex;
-      if (currentQuestion.next_question_logic && currentQuestion.next_question_logic[response]) {
+      if (currentQuestion.next_question_logic && 
+          typeof response === 'string' && 
+          currentQuestion.next_question_logic[response] !== undefined) {
         // Use logic mapping if applicable
-        const nextQuestionId = currentQuestion.next_question_logic[response];
+        const nextQuestionId = currentQuestion.next_question_logic[response] as number;
         nextQuestionIndex = questions.findIndex(q => q.id === nextQuestionId);
-      } else if (currentQuestion.next_question_logic && currentQuestion.next_question_logic.default) {
+      } else if (currentQuestion.next_question_logic && 
+                'default' in currentQuestion.next_question_logic) {
         // Use default if specific mapping not found
-        const nextQuestionId = currentQuestion.next_question_logic.default;
+        const nextQuestionId = (currentQuestion.next_question_logic as { default: number }).default;
         nextQuestionIndex = questions.findIndex(q => q.id === nextQuestionId);
       } else {
         // Just go to the next question in sequence
@@ -113,12 +167,12 @@ const Quiz = () => {
   };
 
   // Analyze general phase responses to determine cancer type for specialized phase
-  const analyzeGeneralResponses = async (generalResponses) => {
+  const analyzeGeneralResponses = async (generalResponses: Record<number, string | number>) => {
     // This is a simplified algorithm to determine the most likely cancer type
     // In a real application, this would be more sophisticated
 
     // Count symptoms for each cancer type
-    const cancerTypeScores = {
+    const cancerTypeScores: Record<string, number> = {
       "skin": 0,
       "kidney": 0,
       "brain": 0,
@@ -137,7 +191,7 @@ const Quiz = () => {
         const hints = question.options.cancer_type_hints;
         for (const [cancerType, weight] of Object.entries(hints)) {
           if (cancerTypeScores.hasOwnProperty(cancerType)) {
-            cancerTypeScores[cancerType] += parseInt(weight);
+            cancerTypeScores[cancerType] += Number(weight);
           }
         }
       }
@@ -145,7 +199,7 @@ const Quiz = () => {
     
     // Find the cancer type with the highest score
     let maxScore = 0;
-    let detectedType = null;
+    let detectedType: string | null = null;
     
     for (const [type, score] of Object.entries(cancerTypeScores)) {
       if (score > maxScore) {
@@ -184,7 +238,7 @@ const Quiz = () => {
   };
 
   // Save all responses to the database
-  const saveAllResponses = async (allResponses) => {
+  const saveAllResponses = async (allResponses: Record<number, string | number>) => {
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
@@ -205,7 +259,7 @@ const Quiz = () => {
           .insert({
             user_id: user.id,
             question_id: parseInt(questionId),
-            response: typeof response === 'object' ? JSON.stringify(response) : response.toString()
+            response: response.toString()
           });
 
         if (error) throw error;
@@ -227,7 +281,7 @@ const Quiz = () => {
   };
 
   // Calculate risk score based on responses
-  const calculateRiskScore = async (allResponses) => {
+  const calculateRiskScore = async (allResponses: Record<number, string | number>) => {
     let totalScore = 0;
     let maxPossibleScore = 0;
     
@@ -251,17 +305,22 @@ const Quiz = () => {
           break;
         case 'range':
           // For range, we normalize the score based on the range
-          const range = question.options.max - question.options.min;
-          const normalizedValue = (response - question.options.min) / range;
-          totalScore += Math.round(normalizedValue * question.weight);
+          if (question.options.min !== undefined && question.options.max !== undefined) {
+            const range = question.options.max - question.options.min;
+            const normalizedValue = (Number(response) - question.options.min) / range;
+            totalScore += Math.round(normalizedValue * question.weight);
+          }
           break;
         case 'select':
           // For select, we assign different weights based on the selection
-          // This is simplified - you might want a more complex mapping
-          const options = question.options.options;
-          const responseIndex = options.indexOf(response);
-          const optionScore = (responseIndex / (options.length - 1)) * question.weight;
-          totalScore += Math.round(optionScore);
+          if (question.options.options && question.options.options.length > 0) {
+            const options = question.options.options;
+            const responseIndex = options.indexOf(response.toString());
+            if (responseIndex >= 0) {
+              const optionScore = (responseIndex / (options.length - 1)) * question.weight;
+              totalScore += Math.round(optionScore);
+            }
+          }
           break;
       }
     }
@@ -358,7 +417,7 @@ const Quiz = () => {
               </div>
             </motion.div>
             
-            <AnimatePresence>
+            <AnimatePresence mode="wait">
               {isLoading ? (
                 <motion.div 
                   key="loading"
@@ -401,7 +460,7 @@ const Quiz = () => {
                     quizPhase={quizPhase}
                     phaseProgress={quizPhase === "general" 
                       ? `General Screening (${currentQuestionIndex + 1}/${generalQuestions.length})` 
-                      : `${detectedCancerType.charAt(0).toUpperCase() + detectedCancerType.slice(1)} Cancer Assessment`}
+                      : `${detectedCancerType?.charAt(0).toUpperCase() + detectedCancerType?.slice(1)} Cancer Assessment`}
                   />
                 </motion.div>
               ) : (

@@ -31,7 +31,7 @@ interface Question {
 
 interface QuizComponentProps {
   question: Question;
-  onResponse: (questionId: number, response: any) => void;
+  onResponse: (questionId: number, response: string | number) => void;
   currentQuestion: number;
   totalQuestions: number;
   quizPhase: string;
@@ -46,7 +46,7 @@ const QuizComponent = ({
   quizPhase,
   phaseProgress
 }: QuizComponentProps) => {
-  const [response, setResponse] = useState<any>(null);
+  const [response, setResponse] = useState<string | null>(null);
   const [sliderValue, setSliderValue] = useState<number[]>([1]);
   const [isValid, setIsValid] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -91,7 +91,7 @@ const QuizComponent = ({
       setTimeout(() => {
         if (question.question_type === 'range') {
           onResponse(question.id, sliderValue[0]);
-        } else {
+        } else if (response !== null) {
           onResponse(question.id, response);
         }
       }, 300); // Small delay for animation completion
@@ -181,9 +181,9 @@ const QuizComponent = ({
             {question.question_text}
           </h2>
 
-          {question.question_type === 'boolean' && (
+          {question.question_type === 'boolean' && question.options?.options && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {question.options?.options?.map((option) => (
+              {question.options.options.map((option) => (
                 <motion.button
                   key={option}
                   initial="initial"
@@ -251,14 +251,14 @@ const QuizComponent = ({
             </div>
           )}
 
-          {question.question_type === 'select' && (
+          {question.question_type === 'select' && question.options?.options && (
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl border-2 border-purple-100 p-6">
               <Select onValueChange={(value) => setResponse(value)}>
                 <SelectTrigger className="w-full text-base border-2 border-purple-100 hover:border-cancer-purple transition-colors">
                   <SelectValue placeholder="Select an option" />
                 </SelectTrigger>
                 <SelectContent className="bg-white/95 backdrop-blur-sm border border-purple-100">
-                  {question.options?.options?.map((option) => (
+                  {question.options.options.map((option) => (
                     <SelectItem 
                       key={option} 
                       value={option}
