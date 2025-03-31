@@ -147,7 +147,7 @@ const QuizComponent = ({
         </div>
       </div>
 
-      <AnimatePresence mode="wait">
+      <AnimatePresence>
         <motion.div
           key={question.id}
           initial={{ opacity: 0, x: 50 }}
@@ -165,13 +165,11 @@ const QuizComponent = ({
               {question.options?.options?.map((option) => (
                 <motion.button
                   key={option}
-                  variants={bubbleVariants}
                   initial="initial"
-                  animate="animate"
+                  animate={response === option ? "selected" : "animate"}
                   exit="exit"
                   whileHover={response !== option ? "hover" : ""}
                   variants={bubbleVariants}
-                  animate={response === option ? "selected" : "animate"}
                   className={`relative p-6 rounded-2xl border-2 transition-all duration-300 flex items-center justify-center
                     ${response === option 
                       ? 'border-cancer-purple bg-cancer-purple text-white' 

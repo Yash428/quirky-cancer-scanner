@@ -1,20 +1,15 @@
 
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import { toast } from "@/components/ui/use-toast";
+import { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Home,
-  User,
-  FileText,
-  Settings,
-  HelpCircle,
-  LogOut,
-  ChevronLeft,
-  ChevronRight,
-  Activity,
-  Clipboard
+import { toast } from "@/components/ui/use-toast";
+import { Button } from "@/components/ui/button";
+import { 
+  ChevronLeft, ChevronRight, 
+  LayoutDashboard, FolderSearch, FileText, 
+  User, Settings, HelpCircle, LogOut,
+  BrainCircuit
 } from "lucide-react";
 
 interface DashboardSidebarProps {
@@ -23,151 +18,177 @@ interface DashboardSidebarProps {
 }
 
 const DashboardSidebar = ({ isCollapsed, setIsCollapsed }: DashboardSidebarProps) => {
-  const [userData, setUserData] = useState<{ name: string, email: string }>({ name: "Guest", email: "" });
-  const navigate = useNavigate();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   
-  useEffect(() => {
-    // Get user data from Supabase
-    const getUserData = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        console.log("User data from Supabase:", user);
-        const fullName = user.user_metadata?.full_name || "User";
-        setUserData({ 
-          name: fullName,
-          email: user.email || ""
-        });
-        
-        // Store in localStorage for components that need it
-        localStorage.setItem("user", JSON.stringify({ name: fullName, email: user.email }));
-      }
-    };
-    
-    getUserData();
-  }, []);
+  const handleToggle = () => {
+    setIsCollapsed(!isCollapsed);
+  };
   
-  const navItems = [
-    { icon: Home, label: "Dashboard", path: "/dashboard" },
-    { icon: Activity, label: "Scans", path: "/scans" },
-    { icon: FileText, label: "Reports", path: "/reports" },
-    { icon: Clipboard, label: "Quiz", path: "/quiz" },
-    { icon: User, label: "Profile", path: "/profile" },
-    { icon: Settings, label: "Settings", path: "/settings" },
-    { icon: HelpCircle, label: "Help", path: "/help" },
-  ];
-
   const handleLogout = async () => {
     try {
-      console.log("Logging out user...");
-      toast({
-        title: "Logging out...",
-        description: "You've been successfully logged out.",
-      });
-      
+      setIsLoggingOut(true);
       const { error } = await supabase.auth.signOut();
+      
       if (error) throw error;
       
-      console.log("Logout successful");
       localStorage.removeItem("user");
-      setTimeout(() => {
-        navigate("/");
-      }, 1500);
+      toast({
+        title: "Logged out successfully",
+        description: "You have been logged out of your account.",
+      });
+      navigate("/login");
     } catch (error) {
       console.error("Error logging out:", error);
       toast({
         variant: "destructive",
-        title: "Logout Error",
-        description: "There was a problem logging you out. Please try again.",
+        title: "Error",
+        description: "Failed to log out. Please try again.",
       });
+    } finally {
+      setIsLoggingOut(false);
     }
   };
-
-  const isActive = (path: string) => {
-    return location.pathname === path;
-  };
-
+  
+  const navigationItems = [
+    {
+      name: "Dashboard",
+      icon: <LayoutDashboard size={20} />,
+      path: "/dashboard",
+    },
+    {
+      name: "Scans",
+      icon: <FolderSearch size={20} />,
+      path: "/scans",
+    },
+    {
+      name: "Reports",
+      icon: <FileText size={20} />,
+      path: "/reports",
+    },
+    {
+      name: "Quiz",
+      icon: <BrainCircuit size={20} />,
+      path: "/quiz",
+    },
+    {
+      name: "Profile",
+      icon: <User size={20} />,
+      path: "/profile",
+    },
+    {
+      name: "Settings",
+      icon: <Settings size={20} />,
+      path: "/settings",
+    },
+    {
+      name: "Help",
+      icon: <HelpCircle size={20} />,
+      path: "/help",
+    },
+  ];
+  
   return (
-    <div
-      className={`h-screen bg-white border-r border-cancer-blue/10 shadow-sm flex flex-col transition-all duration-300 ${
-        isCollapsed ? "w-20" : "w-64"
-      }`}
+    <motion.div
+      initial={false}
+      animate={{
+        width: isCollapsed ? "80px" : "280px",
+        transition: { duration: 0.3, ease: "easeInOut" },
+      }}
+      className="h-screen bg-gradient-to-b from-purple-50 to-white border-r border-purple-100 overflow-hidden flex flex-col z-20"
     >
-      {/* Header */}
-      <div className="p-4 flex items-center justify-between border-b border-cancer-blue/10">
-        <Link to="/" className="flex items-center space-x-2">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cancer-blue to-cancer-purple flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-bold text-lg">CS</span>
+      <div className="p-4 border-b border-purple-100 flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-2 flex-shrink-0">
+          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-cancer-blue to-cancer-purple flex items-center justify-center text-white font-bold">
+            C
           </div>
-          {!isCollapsed && (
-            <span className="text-lg font-exo font-bold text-cancer-dark">
-              Cell<span className="text-cancer-blue">Scan</span>
-            </span>
-          )}
+          
+          <AnimatePresence initial={false}>
+            {!isCollapsed && (
+              <motion.div
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: "auto" }}
+                exit={{ opacity: 0, width: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden flex-shrink-0"
+              >
+                <span className="font-bold text-lg bg-gradient-to-r from-cancer-blue to-cancer-purple bg-clip-text text-transparent">
+                  CellScan
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </Link>
-
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-1 rounded-full hover:bg-gray-100 text-gray-500"
+        
+        <Button
+          variant="ghost"
+          size="icon"
+          className="rounded-full hover:bg-purple-100"
+          onClick={handleToggle}
         >
           {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-        </button>
+        </Button>
       </div>
-
-      {/* User info */}
-      <div className={`p-4 border-b border-cancer-blue/10 ${isCollapsed ? "flex justify-center" : ""}`}>
-        {isCollapsed ? (
-          <div className="w-10 h-10 rounded-full bg-cancer-purple/10 flex items-center justify-center">
-            <span className="text-cancer-purple font-bold">{userData.name.charAt(0)}</span>
-          </div>
-        ) : (
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-cancer-purple/10 flex items-center justify-center">
-              <span className="text-cancer-purple font-bold">{userData.name.charAt(0)}</span>
-            </div>
-            <div>
-              <h4 className="font-medium text-gray-800">Hey, {userData.name}!</h4>
-              <p className="text-xs text-gray-500">Ready to scan & conquer?</p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4">
-        <ul className="space-y-1 px-2">
-          {navItems.map((item, index) => (
-            <li key={index}>
-              <Link
-                to={item.path}
-                className={`flex items-center space-x-3 px-3 py-2 rounded-lg ${
-                  isActive(item.path) 
-                    ? "bg-cancer-blue/10 text-cancer-blue" 
-                    : "hover:bg-cancer-blue/5 text-gray-700 hover:text-cancer-blue"
-                } transition-colors`}
-              >
-                <item.icon size={20} />
-                {!isCollapsed && <span>{item.label}</span>}
-              </Link>
-            </li>
+      
+      <div className="flex-1 overflow-y-auto py-4">
+        <nav className="space-y-1 px-2">
+          {navigationItems.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all duration-200 ${
+                location.pathname === item.path
+                  ? "bg-purple-100 text-cancer-purple"
+                  : "text-gray-600 hover:bg-purple-50"
+              }`}
+            >
+              {item.icon}
+              
+              <AnimatePresence initial={false}>
+                {!isCollapsed && (
+                  <motion.span
+                    initial={{ opacity: 0, width: 0 }}
+                    animate={{ opacity: 1, width: "auto" }}
+                    exit={{ opacity: 0, width: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="whitespace-nowrap"
+                  >
+                    {item.name}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </Link>
           ))}
-        </ul>
-      </nav>
-
-      {/* Logout button */}
-      <div className="p-4 border-t border-cancer-blue/10">
-        <button
+        </nav>
+      </div>
+      
+      <div className="p-4 border-t border-purple-100">
+        <Button
+          variant="ghost"
+          className={`w-full flex items-center justify-${
+            isCollapsed ? "center" : "start"
+          } gap-3 text-red-500 hover:bg-red-50 hover:text-red-600`}
           onClick={handleLogout}
-          className={`flex items-center space-x-3 w-full px-3 py-2 rounded-lg text-gray-700 hover:bg-red-50 hover:text-red-500 transition-colors ${
-            isCollapsed ? "justify-center" : ""
-          }`}
+          disabled={isLoggingOut}
         >
           <LogOut size={20} />
-          {!isCollapsed && <span>Logout</span>}
-        </button>
+          
+          <AnimatePresence initial={false}>
+            {!isCollapsed && (
+              <motion.span
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: "auto" }}
+                exit={{ opacity: 0, width: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                Logout
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </Button>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

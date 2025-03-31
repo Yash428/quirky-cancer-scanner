@@ -43,6 +43,7 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <TooltipProvider>
+          {/* Particle background is now global across the entire app */}
           <ParticleBackground />
           <Toaster />
           <Sonner />

@@ -239,10 +239,16 @@ const Quiz = () => {
                 <p className="text-gray-600">
                   Answer a few questions to help us assess your cancer risk factors and provide personalized recommendations.
                 </p>
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Disclaimer:</strong> This quiz is for informational purposes only and not a substitute for professional medical advice. 
+                    Please consult with a healthcare professional for proper diagnosis and treatment.
+                  </p>
+                </div>
               </div>
             </motion.div>
             
-            <AnimatePresence mode="wait">
+            <AnimatePresence>
               {isLoading ? (
                 <motion.div 
                   key="loading"
