@@ -33,6 +33,12 @@ export interface CancerTypeScores {
   [key: string]: number;
 }
 
+export interface CancerTypeRiskAssessment {
+  cancerType: string;
+  score: number;
+  riskAssessment: RiskAssessment | null;
+}
+
 export interface QuizState {
   isLoading: boolean;
   questions: Question[];
@@ -49,4 +55,5 @@ export interface QuizState {
   allCancerTypesProcessed: boolean;
   cancerTypesQueue: string[];
   hasPositiveResponses: boolean;
+  cancerTypeRiskAssessments: CancerTypeRiskAssessment[];
 }

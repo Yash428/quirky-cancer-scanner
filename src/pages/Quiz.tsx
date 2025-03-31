@@ -9,7 +9,7 @@ import QuizComponent from "@/components/QuizComponent";
 import QuizResults from "@/components/QuizResults";
 import HealthyResult from "@/components/HealthyResult";
 import { analyzeGeneralResponses, calculateRiskScore } from "@/utils/quizUtils";
-import { Question, RiskAssessment, QuizState } from "@/types/quizTypes";
+import { Question, RiskAssessment, QuizState, CancerTypeRiskAssessment } from "@/types/quizTypes";
 
 const Quiz = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -31,7 +31,8 @@ const Quiz = () => {
     currentCancerType: null,
     allCancerTypesProcessed: false,
     cancerTypesQueue: [],
-    hasPositiveResponses: false
+    hasPositiveResponses: false,
+    cancerTypeRiskAssessments: []
   });
 
   // Fetch questions from the database
@@ -69,11 +70,25 @@ const Quiz = () => {
 
         // Initially set the active questions to general screening
         if (generalData && generalData.length > 0) {
+          const parsedGeneralQuestions = generalData.map((q: any) => ({
+            ...q,
+            options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options,
+            next_question_logic: typeof q.next_question_logic === 'string' ? 
+              JSON.parse(q.next_question_logic) : q.next_question_logic
+          }));
+          
+          const parsedSpecializedQuestions = specializedData.map((q: any) => ({
+            ...q,
+            options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options,
+            next_question_logic: typeof q.next_question_logic === 'string' ? 
+              JSON.parse(q.next_question_logic) : q.next_question_logic
+          }));
+          
           setState(prev => ({
             ...prev,
-            generalQuestions: generalData,
-            specializedQuestions: specializedData,
-            questions: generalData,
+            generalQuestions: parsedGeneralQuestions,
+            specializedQuestions: parsedSpecializedQuestions,
+            questions: parsedGeneralQuestions,
             isLoading: false
           }));
         } else {
@@ -146,19 +161,15 @@ const Quiz = () => {
       } else {
         // Quiz is completed, save all responses to the database
         await saveAllResponses(newResponses);
-        const finalScore = calculateRiskScore(
-          newResponses, 
-          [...state.generalQuestions, ...state.specializedQuestions.filter(q => 
-            state.detectedCancerTypes.includes(q.category || '')
-          )]
-        );
         
-        await fetchRiskAssessment(finalScore);
+        // Calculate risk assessments for all detected cancer types
+        const riskAssessments = await calculateAllRiskAssessments(state.detectedCancerTypes, newResponses);
+        
         setState(prev => ({
           ...prev,
           quizCompleted: true,
-          score: finalScore,
-          allCancerTypesProcessed: true
+          allCancerTypesProcessed: true,
+          cancerTypeRiskAssessments: riskAssessments
         }));
       }
 
@@ -169,6 +180,87 @@ const Quiz = () => {
         title: "Error",
         description: "Failed to process your response. Please try again.",
       });
+    }
+  };
+
+  // Calculate risk assessments for all detected cancer types
+  const calculateAllRiskAssessments = async (
+    detectedTypes: string[],
+    responses: Record<number, string | number>
+  ): Promise<CancerTypeRiskAssessment[]> => {
+    const assessments: CancerTypeRiskAssessment[] = [];
+    
+    // Process each cancer type
+    for (const cancerType of detectedTypes) {
+      try {
+        // Get relevant questions for this cancer type
+        const relevantQuestions = [
+          ...state.generalQuestions,
+          ...state.specializedQuestions.filter(q => q.category === cancerType)
+        ];
+        
+        // Calculate score for this cancer type
+        const score = calculateRiskScore(responses, relevantQuestions);
+        
+        // Fetch risk assessment for this cancer type and score
+        const riskAssessment = await fetchRiskAssessmentForType(score, cancerType);
+        
+        assessments.push({
+          cancerType,
+          score,
+          riskAssessment
+        });
+      } catch (error) {
+        console.error(`Error calculating risk for ${cancerType}:`, error);
+      }
+    }
+    
+    // Set the primary risk assessment (for backward compatibility)
+    if (assessments.length > 0) {
+      setState(prev => ({
+        ...prev,
+        riskAssessment: assessments[0].riskAssessment,
+        score: assessments[0].score
+      }));
+    }
+    
+    return assessments;
+  };
+
+  // Fetch risk assessment for a specific cancer type
+  const fetchRiskAssessmentForType = async (score: number, cancerType: string): Promise<RiskAssessment | null> => {
+    try {
+      let query = supabase
+        .from("risk_assessments")
+        .select("*")
+        .lte("min_score", score)
+        .gte("max_score", score);
+      
+      // Filter by cancer type if it's not general
+      if (cancerType !== "general") {
+        query = query.eq("cancer_type", cancerType);
+      }
+      
+      const { data, error } = await query.single();
+      
+      if (error) {
+        // If no specific risk assessment for this cancer type, try generic one
+        const { data: genericData, error: genericError } = await supabase
+          .from("risk_assessments")
+          .select("*")
+          .lte("min_score", score)
+          .gte("max_score", score)
+          .is("cancer_type", null)
+          .single();
+          
+        if (genericError) throw genericError;
+        return genericData;
+      }
+      
+      return data;
+    } catch (error) {
+      console.error(`Error fetching risk assessment for ${cancerType}:`, error);
+      return null;
     }
   };
 
@@ -216,15 +308,14 @@ const Quiz = () => {
     } else {
       // If no specialized questions needed, complete the quiz
       await saveAllResponses(responses);
-      const score = calculateRiskScore(responses, state.generalQuestions);
-      await fetchRiskAssessment(score);
+      const assessments = await calculateAllRiskAssessments(["general"], responses);
       
       setState(prev => ({
         ...prev,
         quizCompleted: true,
-        score: score,
         allCancerTypesProcessed: true,
-        hasPositiveResponses: true
+        hasPositiveResponses: true,
+        cancerTypeRiskAssessments: assessments
       }));
     }
   };
@@ -269,19 +360,18 @@ const Quiz = () => {
     } else {
       // No more cancer types to process
       await saveAllResponses(state.responses);
-      const finalScore = calculateRiskScore(
-        state.responses, 
-        [...state.generalQuestions, ...state.specializedQuestions.filter(q => 
-          state.detectedCancerTypes.includes(q.category || '')
-        )]
+      
+      // Calculate risk assessments for all detected cancer types
+      const riskAssessments = await calculateAllRiskAssessments(
+        state.detectedCancerTypes, 
+        state.responses
       );
       
-      await fetchRiskAssessment(finalScore);
       setState(prev => ({
         ...prev,
         quizCompleted: true,
         allCancerTypesProcessed: true,
-        score: finalScore
+        cancerTypeRiskAssessments: riskAssessments
       }));
     }
   };
@@ -379,7 +469,8 @@ const Quiz = () => {
       allCancerTypesProcessed: false,
       cancerTypesQueue: [],
       hasPositiveResponses: true,
-      questions: state.generalQuestions
+      questions: state.generalQuestions,
+      cancerTypeRiskAssessments: []
     });
   };
 
@@ -433,7 +524,7 @@ const Quiz = () => {
               </div>
             </motion.div>
             
-            <AnimatePresence mode="wait">
+            <AnimatePresence>
               {state.isLoading ? (
                 <motion.div 
                   key="loading"
@@ -461,7 +552,8 @@ const Quiz = () => {
                       score={state.score} 
                       riskAssessment={state.riskAssessment}
                       cancerType={state.detectedCancerTypes[0]}
-                      resetQuiz={resetQuiz} 
+                      resetQuiz={resetQuiz}
+                      allRiskAssessments={state.cancerTypeRiskAssessments}
                     />
                   </motion.div>
                 ) : (
