@@ -8,7 +8,10 @@ import {
   AlertCircle,
   ShieldCheck,
   RefreshCw,
-  ArrowRight
+  ArrowRight,
+  BookOpen,
+  Utensils,
+  Calendar
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useState } from "react";
@@ -18,16 +21,20 @@ interface RiskAssessment {
   advice: string;
   foods_to_eat: string[];
   foods_to_avoid: string[];
+  precautions: string[];
+  cancer_type: string;
 }
 
 interface QuizResultsProps {
   score: number;
   riskAssessment: RiskAssessment | null;
+  cancerType: string | null;
   resetQuiz: () => void;
 }
 
-const QuizResults = ({ score, riskAssessment, resetQuiz }: QuizResultsProps) => {
+const QuizResults = ({ score, riskAssessment, cancerType, resetQuiz }: QuizResultsProps) => {
   const [showAllFoods, setShowAllFoods] = useState<boolean>(false);
+  const [showAllPrecautions, setShowAllPrecautions] = useState<boolean>(false);
 
   if (!riskAssessment) {
     return (
@@ -87,8 +94,15 @@ const QuizResults = ({ score, riskAssessment, resetQuiz }: QuizResultsProps) => 
 
   const riskInfo = getRiskLevelInfo(riskAssessment.risk_level);
   
+  // Format the cancer type for display
+  const formattedCancerType = cancerType 
+    ? cancerType.charAt(0).toUpperCase() + cancerType.slice(1) 
+    : "General";
+  
   // Limit the number of foods shown initially
   const foodLimit = 4;
+  const precautionLimit = 3;
+  
   const displayEatFoods = showAllFoods 
     ? riskAssessment.foods_to_eat 
     : riskAssessment.foods_to_eat.slice(0, foodLimit);
@@ -96,6 +110,10 @@ const QuizResults = ({ score, riskAssessment, resetQuiz }: QuizResultsProps) => 
   const displayAvoidFoods = showAllFoods 
     ? riskAssessment.foods_to_avoid 
     : riskAssessment.foods_to_avoid.slice(0, foodLimit);
+    
+  const displayPrecautions = showAllPrecautions
+    ? riskAssessment.precautions || []
+    : (riskAssessment.precautions || []).slice(0, precautionLimit);
 
   // Motion variants
   const containerVariants = {
@@ -144,10 +162,10 @@ const QuizResults = ({ score, riskAssessment, resetQuiz }: QuizResultsProps) => 
       
       <motion.div variants={itemVariants} className="text-center mb-8 relative z-10">
         <h2 className="text-3xl font-bold mb-2 text-gradient bg-gradient-to-r from-cancer-blue to-cancer-purple bg-clip-text text-transparent">
-          Your Risk Assessment
+          Your Cancer Risk Assessment
         </h2>
         <p className="text-gray-600">
-          Based on your responses, we've generated the following personalized assessment.
+          Based on your responses, we've generated the following personalized assessment for {formattedCancerType} cancer risk.
         </p>
       </motion.div>
 
@@ -164,10 +182,15 @@ const QuizResults = ({ score, riskAssessment, resetQuiz }: QuizResultsProps) => 
           {riskInfo.icon}
         </motion.div>
         <div className="text-center md:text-left">
-          <h3 className="text-2xl font-semibold mb-2">Your Score: {score}</h3>
+          <h3 className="text-2xl font-semibold mb-2">Score: {score}</h3>
           <div className={`text-xl font-medium ${riskInfo.textColor}`}>
             Risk Level: {riskAssessment.risk_level}
           </div>
+          {cancerType && cancerType !== "general" && (
+            <div className="mt-2 text-lg">
+              Cancer Type: {formattedCancerType}
+            </div>
+          )}
         </div>
       </motion.div>
 
@@ -175,11 +198,51 @@ const QuizResults = ({ score, riskAssessment, resetQuiz }: QuizResultsProps) => 
         variants={itemVariants}
         className="mb-8 bg-white/80 backdrop-blur-sm rounded-2xl border-2 border-purple-100 p-6"
       >
-        <h3 className="text-xl font-semibold mb-3 text-cancer-purple">Personalized Advice</h3>
+        <h3 className="text-xl font-semibold mb-3 text-cancer-purple flex items-center">
+          <BookOpen className="w-5 h-5 mr-2" />
+          Personalized Advice
+        </h3>
         <p className="text-gray-700 bg-gray-50 p-6 rounded-lg border border-gray-100 leading-relaxed">
           {riskAssessment.advice}
         </p>
       </motion.div>
+
+      {riskAssessment.precautions && riskAssessment.precautions.length > 0 && (
+        <motion.div
+          variants={itemVariants}
+          className="mb-8 bg-white/80 backdrop-blur-sm rounded-2xl border-2 border-blue-100 p-6"
+        >
+          <h3 className="text-xl font-semibold mb-3 text-blue-700 flex items-center">
+            <Calendar className="w-5 h-5 mr-2" />
+            Recommended Precautions
+          </h3>
+          <ul className="bg-blue-50 p-4 rounded-lg space-y-2">
+            {displayPrecautions.map((precaution, index) => (
+              <motion.li
+                key={index}
+                custom={index}
+                variants={foodItemVariants}
+                className="flex items-start p-2 hover:bg-white/60 rounded-md transition-colors"
+              >
+                <ShieldCheck className="w-4 h-4 text-blue-600 mr-2 mt-1 flex-shrink-0" />
+                <span>{precaution}</span>
+              </motion.li>
+            ))}
+          </ul>
+          
+          {riskAssessment.precautions.length > precautionLimit && (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={() => setShowAllPrecautions(!showAllPrecautions)}
+                className="text-blue-600 hover:text-blue-800 flex items-center gap-2 transition-colors"
+              >
+                {showAllPrecautions ? 'Show fewer precautions' : 'Show all precautions'}
+                <ArrowRight className={`w-4 h-4 transition-transform ${showAllPrecautions ? 'rotate-90' : ''}`} />
+              </button>
+            </div>
+          )}
+        </motion.div>
+      )}
 
       <motion.div 
         variants={itemVariants}
@@ -187,7 +250,7 @@ const QuizResults = ({ score, riskAssessment, resetQuiz }: QuizResultsProps) => 
       >
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl border-2 border-green-100 p-6">
           <h3 className="text-xl font-semibold mb-3 flex items-center text-green-700">
-            <Check className="w-5 h-5 mr-2" />
+            <Utensils className="w-5 h-5 mr-2" />
             Foods to Include
           </h3>
           <ul className="bg-green-50 p-4 rounded-lg space-y-2">
@@ -232,7 +295,7 @@ const QuizResults = ({ score, riskAssessment, resetQuiz }: QuizResultsProps) => 
             onClick={() => setShowAllFoods(!showAllFoods)}
             className="text-cancer-purple hover:text-cancer-blue flex items-center gap-2 transition-colors"
           >
-            {showAllFoods ? 'Show fewer recommendations' : 'Show all recommendations'}
+            {showAllFoods ? 'Show fewer dietary recommendations' : 'Show all dietary recommendations'}
             <ArrowRight className={`w-4 h-4 transition-transform ${showAllFoods ? 'rotate-90' : ''}`} />
           </button>
         </motion.div>

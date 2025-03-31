@@ -12,24 +12,43 @@ const Quiz = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [questions, setQuestions] = useState([]);
+  const [generalQuestions, setGeneralQuestions] = useState([]);
+  const [specializedQuestions, setSpecializedQuestions] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [responses, setResponses] = useState({});
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [score, setScore] = useState(0);
   const [riskAssessment, setRiskAssessment] = useState(null);
+  const [quizPhase, setQuizPhase] = useState("general"); // general or specialized
+  const [detectedCancerType, setDetectedCancerType] = useState(null);
   const navigate = useNavigate();
 
   // Fetch questions from the database
   useEffect(() => {
     const fetchQuestions = async () => {
       try {
-        const { data, error } = await supabase
+        // Fetch general screening questions
+        const { data: generalData, error: generalError } = await supabase
           .from("questions")
           .select("*")
+          .eq("category", "general")
           .order("id");
 
-        if (error) throw error;
-        setQuestions(data);
+        if (generalError) throw generalError;
+        setGeneralQuestions(generalData);
+
+        // Fetch all other questions for the specialized phase
+        const { data: specializedData, error: specializedError } = await supabase
+          .from("questions")
+          .select("*")
+          .not("category", "eq", "general")
+          .order("id");
+
+        if (specializedError) throw specializedError;
+        setSpecializedQuestions(specializedData);
+
+        // Initially set the active questions to general screening
+        setQuestions(generalData);
         setIsLoading(false);
       } catch (error) {
         console.error("Error fetching questions:", error);
@@ -70,9 +89,12 @@ const Quiz = () => {
         nextQuestionIndex = currentQuestionIndex + 1;
       }
 
-      // If there are more questions, go to the next one
+      // If there are more questions in current phase, go to the next one
       if (nextQuestionIndex < questions.length && nextQuestionIndex >= 0) {
         setCurrentQuestionIndex(nextQuestionIndex);
+      } else if (quizPhase === "general") {
+        // Transition from general to specialized phase
+        await analyzeGeneralResponses(newResponses);
       } else {
         // Quiz is completed, save all responses to the database
         await saveAllResponses(newResponses);
@@ -87,6 +109,77 @@ const Quiz = () => {
         title: "Error",
         description: "Failed to process your response. Please try again.",
       });
+    }
+  };
+
+  // Analyze general phase responses to determine cancer type for specialized phase
+  const analyzeGeneralResponses = async (generalResponses) => {
+    // This is a simplified algorithm to determine the most likely cancer type
+    // In a real application, this would be more sophisticated
+
+    // Count symptoms for each cancer type
+    const cancerTypeScores = {
+      "skin": 0,
+      "kidney": 0,
+      "brain": 0,
+      "oral": 0,
+      "breast": 0
+    };
+    
+    // Analyze responses to determine the most likely cancer type
+    for (const question of generalQuestions) {
+      const response = generalResponses[question.id];
+      
+      if (!response || response === "No") continue;
+      
+      // Increment scores based on response and question category hints
+      if (question.options && question.options.cancer_type_hints) {
+        const hints = question.options.cancer_type_hints;
+        for (const [cancerType, weight] of Object.entries(hints)) {
+          if (cancerTypeScores.hasOwnProperty(cancerType)) {
+            cancerTypeScores[cancerType] += parseInt(weight);
+          }
+        }
+      }
+    }
+    
+    // Find the cancer type with the highest score
+    let maxScore = 0;
+    let detectedType = null;
+    
+    for (const [type, score] of Object.entries(cancerTypeScores)) {
+      if (score > maxScore) {
+        maxScore = score;
+        detectedType = type;
+      }
+    }
+    
+    // Default to "general" if no clear indication
+    if (maxScore === 0) {
+      detectedType = "general";
+    }
+    
+    setDetectedCancerType(detectedType);
+    
+    // Filter questions for the detected cancer type
+    const specializedQuestionsForType = specializedQuestions.filter(
+      q => q.category === detectedType
+    );
+    
+    if (specializedQuestionsForType.length > 0) {
+      setQuestions(specializedQuestionsForType);
+      setCurrentQuestionIndex(0);
+      setQuizPhase("specialized");
+      
+      toast({
+        title: "Phase Complete",
+        description: `Based on your responses, we'll now ask specific questions about ${detectedType} cancer symptoms.`,
+      });
+    } else {
+      // If no specialized questions found, complete the quiz
+      await saveAllResponses(generalResponses);
+      calculateRiskScore(generalResponses);
+      setQuizCompleted(true);
     }
   };
 
@@ -136,10 +229,16 @@ const Quiz = () => {
   // Calculate risk score based on responses
   const calculateRiskScore = async (allResponses) => {
     let totalScore = 0;
+    let maxPossibleScore = 0;
     
     // Calculate score based on responses and question weights
-    for (const question of questions) {
+    const currentQuestionsSet = quizPhase === "specialized" 
+      ? [...generalQuestions, ...questions]
+      : questions;
+      
+    for (const question of currentQuestionsSet) {
       const response = allResponses[question.id];
+      maxPossibleScore += question.weight;
       
       if (!response) continue;
       
@@ -169,14 +268,20 @@ const Quiz = () => {
     
     setScore(totalScore);
     
-    // Fetch the appropriate risk assessment based on the score
+    // Fetch the appropriate risk assessment based on the score and cancer type
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("risk_assessments")
         .select("*")
         .lte("min_score", totalScore)
-        .gte("max_score", totalScore)
-        .single();
+        .gte("max_score", totalScore);
+        
+      // If we have a detected cancer type, filter by it
+      if (detectedCancerType && detectedCancerType !== "general") {
+        query = query.eq("cancer_type", detectedCancerType);
+      }
+        
+      const { data, error } = await query.single();
         
       if (error) throw error;
       setRiskAssessment(data);
@@ -198,6 +303,9 @@ const Quiz = () => {
     setQuizCompleted(false);
     setScore(0);
     setRiskAssessment(null);
+    setQuizPhase("general");
+    setDetectedCancerType(null);
+    setQuestions(generalQuestions);
   };
 
   // Page transition variants
@@ -237,7 +345,9 @@ const Quiz = () => {
                   </span>
                 </h1>
                 <p className="text-gray-600">
-                  Answer a few questions to help us assess your cancer risk factors and provide personalized recommendations.
+                  {quizPhase === "general" 
+                    ? "Answer a few general screening questions to help us assess your cancer risk factors." 
+                    : `We're now focusing on specific symptoms related to ${detectedCancerType} cancer to provide personalized recommendations.`}
                 </p>
                 <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <p className="text-sm text-yellow-800">
@@ -273,13 +383,14 @@ const Quiz = () => {
                 >
                   <QuizResults 
                     score={score} 
-                    riskAssessment={riskAssessment} 
+                    riskAssessment={riskAssessment}
+                    cancerType={detectedCancerType}
                     resetQuiz={resetQuiz} 
                   />
                 </motion.div>
               ) : questions.length > 0 ? (
                 <motion.div
-                  key={`question-${currentQuestionIndex}`}
+                  key={`question-${currentQuestionIndex}-${quizPhase}`}
                   variants={itemVariants}
                 >
                   <QuizComponent 
@@ -287,6 +398,10 @@ const Quiz = () => {
                     onResponse={handleResponse}
                     currentQuestion={currentQuestionIndex + 1}
                     totalQuestions={questions.length}
+                    quizPhase={quizPhase}
+                    phaseProgress={quizPhase === "general" 
+                      ? `General Screening (${currentQuestionIndex + 1}/${generalQuestions.length})` 
+                      : `${detectedCancerType.charAt(0).toUpperCase() + detectedCancerType.slice(1)} Cancer Assessment`}
                   />
                 </motion.div>
               ) : (

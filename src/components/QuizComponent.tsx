@@ -10,13 +10,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Check, ArrowRight } from "lucide-react";
+import { Check, ArrowRight, BrainCircuit, Activity } from "lucide-react";
 
 interface QuestionOption {
   min?: number;
   max?: number;
   step?: number;
   options?: string[];
+  cancer_type_hints?: Record<string, number>;
 }
 
 interface Question {
@@ -25,6 +26,7 @@ interface Question {
   question_type: string;
   options: QuestionOption;
   weight: number;
+  category?: string;
 }
 
 interface QuizComponentProps {
@@ -32,13 +34,17 @@ interface QuizComponentProps {
   onResponse: (questionId: number, response: any) => void;
   currentQuestion: number;
   totalQuestions: number;
+  quizPhase: string;
+  phaseProgress: string;
 }
 
 const QuizComponent = ({ 
   question, 
   onResponse, 
   currentQuestion, 
-  totalQuestions 
+  totalQuestions,
+  quizPhase,
+  phaseProgress
 }: QuizComponentProps) => {
   const [response, setResponse] = useState<any>(null);
   const [sliderValue, setSliderValue] = useState<number[]>([1]);
@@ -116,6 +122,15 @@ const QuizComponent = ({
     }
   };
 
+  // Phase icon
+  const PhaseIcon = () => {
+    if (quizPhase === "general") {
+      return <Activity className="w-5 h-5 text-blue-500" />;
+    } else {
+      return <BrainCircuit className="w-5 h-5 text-purple-500" />;
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -129,6 +144,12 @@ const QuizComponent = ({
       <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-blue-200 rounded-full opacity-20"></div>
       
       <div className="mb-8 relative z-10">
+        <div className="flex items-center gap-2 mb-2">
+          <PhaseIcon />
+          <p className="text-sm font-medium text-purple-600">
+            {phaseProgress}
+          </p>
+        </div>
         <div className="w-full bg-gray-200 rounded-full h-3 mb-2 overflow-hidden">
           <motion.div 
             className="bg-gradient-to-r from-cancer-blue to-cancer-purple h-3 rounded-full" 
